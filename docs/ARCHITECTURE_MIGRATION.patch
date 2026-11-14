@@ -1,0 +1,174 @@
+--- before/AGENTS.md
++++ after/AGENTS.md
+@@ -1,14 +1,14 @@
+ # AGENTS.md — Deadline Crush / Hack4Hack PS2
+ 
+ ## Mission and authority
+-Build a reliable, deadline-fair submission platform for 2,000 teams in the last 10 minutes. Optimize for correctness, demonstrated failure recovery, test evidence, and an interview-defensible implementation. Read `PRD.md` and `TRD.md` before implementing. These three documents supersede all prior D1, PostgreSQL-on-VPS, or conventional Python-worker designs. If the official challenge conflicts with these documents, flag the discrepancy and update the documents before coding.
++Build a reliable, deadline-fair submission platform for 2,000 teams in the last 10 minutes. Optimize for correctness, demonstrated failure recovery, test evidence, and an interview-defensible implementation. Read `PRD.md` and `TRD.md` before implementing. These three documents supersede all prior D1, PostgreSQL-on-VPS, or Cloudflare Python Worker designs. If the official challenge conflicts with these documents, flag the discrepancy and update the documents before coding.
+ 
+ ## Locked stack
+ - Frontend: React + TypeScript + Vite, deployed on Cloudflare Pages.
+-- API: FastAPI/Pydantic v2 on **Cloudflare Python Workers** (Pyodide/WASM). Do not assume conventional CPython, OS subprocesses, native wheels, sockets, filesystem persistence, or indefinitely running requests.
+-- Database: **Neon PostgreSQL**, via Cloudflare Hyperdrive where supported. Test the actual Python driver (`asyncpg` or supported alternative) and transaction semantics in deployed Workers.
+-- Object storage: **Cloudflare R2**; private bucket, browser-to-R2 multipart uploads. Confirm compatibility of signing and R2 APIs in the actual Worker runtime. A small TypeScript Worker for R2 orchestration is an allowed fallback if Python SDK compatibility blocks progress; preserve the FastAPI public API.
+-- Background delivery: **Cloudflare Queues** with a separate queue consumer Worker; at-least-once delivery. PostgreSQL outbox is authoritative for dispatch, and PostgreSQL jobs are authoritative for state. Queue consumers must be idempotent. If Python queue-consumer support or archive/PDF processing is impractical, use a TypeScript consumer and/or isolated container validation service, documenting the deviation; never claim unsupported Python packages work.
++- API: FastAPI/Pydantic v2 on **standard CPython with Uvicorn**, hosted on Render or Railway. Use a supported CPython version, bounded resources, environment variables, and graceful process startup/shutdown; do not rely on filesystem persistence.
++- Database: **Neon PostgreSQL**, directly via a pooled Neon connection string and a bounded application-level `asyncpg` pool. Test transaction semantics in the deployed CPython service.
++- Object storage: **Cloudflare R2**; private bucket, browser-to-R2 multipart uploads using boto3/S3-compatible operations. Confirm signing and R2 API compatibility in the deployed CPython service; preserve the FastAPI public API.
++- Background delivery: **PostgreSQL-backed durable jobs** with a dedicated Python worker process; at-least-once execution. PostgreSQL outbox is authoritative for dispatch, and PostgreSQL jobs are authoritative for state. Job consumers must be idempotent. If archive/PDF processing requires further isolation, use an isolated container validation service, documenting the deviation; verify Python package and resource requirements.
+ - Deadline: UTC server-side gate; 10-minute upload grace. Winning version: highest eligible finalized version, even when validation is NEEDS_FIX.
+ 
+ ## Agent protocol
+@@ -16,9 +16,9 @@
+ 2. Make small, reviewable changes; update schema, OpenAPI contracts, tests and docs together.
+ 3. Run tests, lint, migrations and deployment smoke checks. Report observed results and unverified claims separately; never fabricate load results or URLs.
+ 4. Use parameterized SQL, migrations (Alembic or versioned SQL), unique constraints, short transactions, `FOR UPDATE`/`SKIP LOCKED` only within Neon PostgreSQL, and idempotency keys with request hashes.
+-5. Never hold a database transaction across an R2 or Queues network call. Use persisted intent, outbox, and reconciliation.
++5. Never hold a database transaction across an R2 or other external network call. Use persisted intent, outbox, and reconciliation.
+ 6. Never use client timestamps for deadline decisions. Use `clock_timestamp()` after relevant row locks, and document that timestamp-before-deadline is not proof of commit-before-deadline.
+-7. Keep JWTs, database credentials, signed URLs, queue secrets, and file bytes out of logs and Git. Enforce team-scoped authorization on all operations; organizer role is separate.
++7. Keep JWTs, database credentials, signed URLs, service secrets, and file bytes out of logs and Git. Enforce team-scoped authorization on all operations; organizer role is separate.
+ 8. Treat signed URLs as bearer capabilities. Short expiry is not sufficient for deadline enforcement. Verify R2 multipart support, `ListParts`, `HEAD`, CORS, ETag visibility and cleanup against actual R2.
+ 9. All queue and worker actions are retryable. Use unique logical jobs, fencing tokens, conditional terminal writes, and immutable attempt-specific artifacts.
+ 10. Validate archive safety (ZIP bombs, traversal, symlinks), protect link checking from SSRF and redirects, bound CPU/memory/time, and sanitize preview output.
+@@ -26,10 +26,10 @@
+ 12. Maintain `docs/decisions.md`, `docs/runbook.md`, `docs/load-test-report.md`, and a candid limitations section.
+ 
+ ## Required execution gates
+-- **Gate 0 — Feasibility:** Deploy a Python FastAPI Worker; connect to Neon via Hyperdrive; sign and complete an R2 multipart upload; publish/consume a Queue message; verify Python ZIP/PDF libraries and CPU/memory constraints. Record exact package versions and limitations. If a capability fails, stop and propose the smallest documented fallback.
++- **Gate 0 — Feasibility:** Deploy a CPython FastAPI/Uvicorn service on Render or Railway; connect directly to Neon with an asyncpg pool; sign and complete an R2 multipart upload with boto3; enqueue/claim a PostgreSQL job in a dedicated Python process; verify Python ZIP/PDF libraries and CPU/memory constraints. Record exact package versions and limitations. If a capability fails, stop and propose the smallest documented fallback.
+ - **Gate 1 — Database:** Migrations, team authorization, version allocation under row lock, deadline tests, immutable versions.
+ - **Gate 2 — Storage:** Multipart create/sign/list/resume/complete; frozen completion manifest, grace admission, R2 reconciliation, idempotent finalization.
+-- **Gate 3 — Processing:** Transactional outbox dispatcher, queue consumer, leases/fencing, validation, preview, worker-kill recovery.
++- **Gate 3 — Processing:** Transactional outbox dispatcher, PostgreSQL job consumer, leases/fencing, validation, preview, worker-kill recovery.
+ - **Gate 4 — Product:** Team upload UI, status/version history, organizer metrics and CSV.
+ - **Gate 5 — Proof:** >=20 automated CI tests (target >=35), deadline boundary tests, 2,000-team/10-minute load test, p95 API target <300 ms, zero acknowledged-submission losses by reconciliation, live deployment, <=5-minute demo, one-page design.
+ 
+@@ -37,15 +37,15 @@
+ ```
+ AGENTS.md PRD.md TRD.md
+ frontend/
+-worker-api/             # FastAPI Python Worker
+-worker-consumer/        # Queue consumer (Python if viable, TS fallback)
+-worker-dispatcher/      # scheduled outbox publisher
++worker-api/             # FastAPI/Uvicorn CPython service
++worker-consumer/        # Dedicated Python job worker process
++worker-dispatcher/      # PostgreSQL outbox/reconciliation process
+ backend-core/           # shared domain logic/schema where portable
+ migrations/
+ tests/{unit,integration,concurrency,e2e}/
+ load-tests/
+ docs/{decisions.md,runbook.md,load-test-report.md}
+-wrangler*.jsonc
++infra/{render.yaml,railway*.json}
+ .github/workflows/
+ ```
+ 
+@@ -55,5 +55,5 @@
+ - One immutable completion manifest per upload; one logical validation job per finalized version.
+ - Last eligible finalized **version number** wins, regardless of validation result; no automatic fallback.
+ - No acknowledged finalization without verified R2 object and durable Neon version + job + outbox transaction.
+-- Worker delivery is at least once; logical outcomes are idempotent and fenced.
++- Job execution is at least once; logical outcomes are idempotent and fenced.
+ - API p95 excludes direct R2 byte transfer, which must be measured separately and disclosed.
+--- before/PRD.md
++++ after/PRD.md
+@@ -1,6 +1,6 @@
+ # PRD.md — Deadline Crush
+ 
+-**Status:** implementation baseline | **Challenge:** Hack4Hack Crew Hiring Challenge 2026, PS2 | **Stack:** React/Cloudflare Pages, FastAPI/Cloudflare Python Workers, Neon PostgreSQL, Cloudflare R2, Cloudflare Queues.
++**Status:** implementation baseline | **Challenge:** Hack4Hack Crew Hiring Challenge 2026, PS2 | **Stack:** React/Cloudflare Pages, FastAPI/Uvicorn on Render or Railway (CPython), Neon PostgreSQL, Cloudflare R2, PostgreSQL-backed durable jobs.
+ 
+ ## 1. Problem and goal
+ During the last 10 minutes of a hackathon, approximately 2,000 teams may upload files simultaneously. The system must accept eligible submissions without losing acknowledged work, support interruptions, apply a fair server-controlled deadline, process submissions asynchronously, and give organizers trustworthy visibility. The deliverable is a deployed, tested system and reproducible proof of its guarantees—not a mockup.
+@@ -61,4 +61,4 @@
+ Virus scanning, email receipts, advanced analytics, elaborate team invitations, multi-region failover, Kafka, Redis, Kubernetes, and visual polish beyond a usable responsive interface. Optional enhancements only after all mandatory checks pass.
+ 
+ ## 9. Definition of done
+-All FR acceptance tests pass; deployment and actual R2/Neon/Queues integrations are smoke-tested; >=20 CI tests; crash/duplicate/boundary tests; reproducible load run with truthful p95 and data reconciliation; one-page design, demo, runbook, and known limitations. If Cloudflare Python Workers cannot safely run archive/PDF validation, a documented isolated processing fallback is acceptable only after feasibility testing and must not be misrepresented as a Python Worker feature.
++All FR acceptance tests pass; deployment and actual R2/Neon/PostgreSQL job integrations are smoke-tested; >=20 CI tests; crash/duplicate/boundary tests; reproducible load run with truthful p95 and data reconciliation; one-page design, demo, runbook, and known limitations. If the dedicated Python worker cannot safely run archive/PDF validation within hosting resource limits, a documented isolated processing fallback is acceptable only after feasibility testing and must not be misrepresented as a verified worker feature.
+--- before/TRD.md
++++ after/TRD.md
+@@ -4,19 +4,19 @@
+ 
+ ## 1. Architecture
+ - React/TypeScript SPA on Cloudflare Pages.
+-- FastAPI on Cloudflare Python Workers for auth, versioning, signing, completion, status, organizer APIs.
+-- Neon PostgreSQL (authoritative ledger) via Cloudflare Hyperdrive and a tested Python driver; use short-lived transactions and pooled connections.
+-- Private Cloudflare R2 for direct browser multipart uploads and immutable completed objects/previews.
+-- Cloudflare Queues for at-least-once processing. Transactional PostgreSQL outbox bridges database commit to queue publication. Queue consumer Worker (Python if feasible; TypeScript orchestrator if necessary); use isolated validation service if WASM limits make ZIP/PDF processing unsafe.
+-- Scheduled dispatcher/reconciler Worker scans pending outbox rows, uncertain R2 operations, and expired job leases. No forever-looping Python Workers.
++- FastAPI/Uvicorn on standard CPython hosted on Render or Railway for auth, versioning, signing, completion, status, organizer APIs.
++- Neon PostgreSQL (authoritative ledger) directly via a pooled Neon connection string and asyncpg; use short-lived transactions and bounded application-level connection pools.
++- Private Cloudflare R2 via boto3/S3-compatible operations for direct browser multipart uploads and immutable completed objects/previews.
++- PostgreSQL-backed durable jobs for at-least-once processing. Transactional PostgreSQL outbox bridges database commit to job dispatch. Dedicated Python worker process; use isolated validation service if hosting resource limits make ZIP/PDF processing unsafe.
++- A dedicated Python dispatcher/reconciler process scans pending outbox rows, uncertain R2 operations, and expired job leases. Use bounded polling and graceful shutdown.
+ 
+ ### Deployment feasibility gate (must execute first)
+-1. Deploy `GET /health` FastAPI Python Worker.
+-2. Connect via Hyperdrive to Neon, perform insert + transaction + rollback + row lock; measure warm/cold latency.
+-3. Prove R2 `CreateMultipartUpload`, signed `UploadPart`, `ListParts`, `CompleteMultipartUpload`, `HeadObject`, `AbortMultipartUpload`, and browser CORS. Python S3 libraries may not work in Pyodide: if so, isolate R2 orchestration in a small TypeScript Worker with authenticated service calls.
+-4. Publish and consume Cloudflare Queue message, including duplicate delivery and retry behavior; verify supported runtime for the consumer.
+-5. Attempt safe ZIP validation and PDF preview with realistic files, enforcing execution/memory limits. If unsupported, isolate in a container service; retain queue orchestration and API on Cloudflare.
+-6. Confirm Cloudflare plan quotas (CPU, request duration, queues, cron, R2 operations), Neon free limits, and CORS on actual accounts. Record results, not assumptions.
++1. Deploy `GET /health` FastAPI/Uvicorn CPython service on Render or Railway.
++2. Connect directly to Neon using a bounded asyncpg pool, perform insert + transaction + rollback + row lock; measure warm/cold latency.
++3. Prove R2 `CreateMultipartUpload`, signed `UploadPart`, `ListParts`, `CompleteMultipartUpload`, `HeadObject`, `AbortMultipartUpload`, and browser CORS. Use boto3/S3-compatible operations in CPython; verify signing and transport against actual R2.
++4. Enqueue and claim a PostgreSQL-backed job, including duplicate execution and retry behavior; verify the dedicated Python worker process.
++5. Attempt safe ZIP validation and PDF preview with realistic files, enforcing execution/memory limits. If unsupported, isolate in a container service; retain PostgreSQL job orchestration and the API on Render or Railway.
++6. Confirm Render/Railway plan quotas (CPU, memory, request duration, persistent background processes, sleeping), R2 operation quotas, Neon free limits, and CORS on actual accounts. Record results, not assumptions.
+ 
+ ## 2. Database schema (PostgreSQL)
+ Use `uuid` PKs, `timestamptz`, `bigint` sizes, UTC timestamps, parameterized queries, `CHECK`, `UNIQUE`, foreign keys, and migrations. Prefer `gen_random_uuid()` and `clock_timestamp()`.
+@@ -186,9 +186,9 @@
+ - Clean up expired multipart uploads and orphaned objects only after verifying no finalized or recoverable intent references them.
+ 
+ ## 6. Durable queue and worker state
+-**Outbox:** Finalization transaction inserts `validation_jobs(version_id UNIQUE)` and `outbox(event_type='VALIDATE',aggregate_id=version_id UNIQUE)`. Scheduled dispatcher claims outbox rows with `FOR UPDATE SKIP LOCKED`, marks SENDING with lease, publishes to Queues, then marks SENT. If publish succeeds but acknowledgment/DB update fails, duplicate delivery is expected and harmless. Expired SENDING rows are republished.
+-
+-**Consumer:** On Queue delivery, attempt atomic job claim; terminal jobs acknowledge without work. For long processing, check/extend lease. On crash, retry message or periodic recovery re-enqueues expired jobs. Cloudflare Queue execution limits and retry semantics must be verified; do not assume a Python Worker can run unbounded validation.
++**Outbox:** Finalization transaction inserts `validation_jobs(version_id UNIQUE)` and `outbox(event_type='VALIDATE',aggregate_id=version_id UNIQUE)`. A dedicated Python dispatcher claims outbox rows with `FOR UPDATE SKIP LOCKED`, marks SENDING with lease, makes the durable PostgreSQL job available, then marks SENT. If dispatch succeeds but acknowledgment/DB update fails, duplicate execution is expected and harmless. Expired SENDING rows are redispatched.
++
++**Consumer:** The dedicated Python process polls PostgreSQL and attempts atomic job claim; terminal jobs require no work. For long processing, check/extend lease. On crash, retry or periodic recovery makes expired jobs available again. Hosting execution limits and retry semantics must be verified; do not assume a Python worker can run unbounded validation.
+ 
+ Example job claim (run in a short Neon transaction):
+ ```sql
+@@ -211,29 +211,29 @@
+ - Detect PDF/ZIP by magic bytes and structural checks; do not trust extension/MIME.
+ - ZIP: max 100 MiB compressed, bounded total uncompressed size (e.g., 500 MiB), max entries (e.g., 2,000), depth, compression ratio, no traversal, absolute paths, symlinks, encrypted or nested archives without explicit policy. Avoid unbounded extraction.
+ - URL checks: HTTPS only where practical; reject localhost, private/link-local/reserved ranges, cloud metadata endpoints, and DNS rebinding; validate every redirect; bound redirects, response bytes and timeouts.
+-- PDF: safe first-page rendering in isolated environment with memory/CPU/time limits. If Cloudflare Python Workers cannot run renderer, use a container service; do not disable preview requirement silently.
++- PDF: safe first-page rendering in isolated environment with memory/CPU/time limits. If the dedicated Python worker cannot safely run the renderer within hosting resource limits, use a container service; do not disable preview requirement silently.
+ - SHA-256: compute by bounded streaming; never assume multipart ETag equals file checksum.
+ - Preview HTML is escaped/sanitized; downloadable objects require authorization and short-lived signed URLs.
+ 
+ ## 8. Tests and observability
+-Minimum 20 CI tests; target >=35: auth/team isolation (5), version/deadline (8), multipart/resume (7), finalization/idempotency (6), worker/outbox/fencing (6), validation security (6), organizer/export (3). Add deployed integration tests for Neon/Hyperdrive, R2 multipart/CORS and Queues.
++Minimum 20 CI tests; target >=35: auth/team isolation (5), version/deadline (8), multipart/resume (7), finalization/idempotency (6), worker/outbox/fencing (6), validation security (6), organizer/export (3). Add deployed integration tests for direct Neon/asyncpg pooling, R2 multipart/CORS and PostgreSQL jobs.
+ 
+ Failure injection: concurrent version creation; two versions finalize out of order; lock crosses deadline; complete at grace cutoff; crash after R2 complete before DB finalize; duplicate queue delivery; worker killed mid-job; stale lease holder resumes; malformed ZIP; cross-team download attempt.
+ 
+ Load: k6 2,000 distinct teams in 600s, realistic burst ramp, separate control-plane p95 (<300ms target) and direct R2 transfer measurements. Capture HTTP errors, Neon lock waits, queue lag, R2 failures, retry counts. Reconcile acknowledged finalizations to durable versions, verified R2 objects, unique logical jobs, and terminal outcomes; report limitations honestly. Free-tier quotas and cold starts can affect results.
+ 
+ ## 9. Implementation phases
+-0. **Feasibility spike** (highest priority): FastAPI Python Worker, Neon/Hyperdrive transaction, R2 multipart, Queues, ZIP/PDF feasibility.
++0. **Feasibility spike** (highest priority): FastAPI/Uvicorn CPython service, direct Neon/asyncpg transaction and pooling, boto3 R2 multipart, PostgreSQL jobs, ZIP/PDF feasibility.
+ 1. **Schema + identity**: migrations, auth, membership, immutable version creation, admission tests.
+ 2. **Storage**: R2 multipart sign/list/resume, immutable completion intent, finalize/reconcile.
+-3. **Async processing**: outbox, dispatcher, Queue consumer, fenced jobs, validation/preview.
++3. **Async processing**: outbox, dispatcher, PostgreSQL job consumer, fenced jobs, validation/preview.
+ 4. **Product**: team UI, status polling, organizer dashboard/CSV.
+ 5. **Hardening**: integration and concurrency tests, k6, CI, deployment, documentation, video.
+ 
+ ## 10. Deployment and known tradeoffs
+-- Configure Worker secrets and Hyperdrive binding; R2 credentials or bindings are server-only. Restrict R2 bucket to private access; browser gets signed capabilities only.
++- Configure environment variables and secrets for Render/Railway web and dedicated Python worker processes; Neon and R2 credentials are server-only. Restrict R2 bucket to private access; browser gets signed capabilities only.
+ - Use separate environment configurations for preview/production; ensure migrations run before deployment.
+ - No guarantee of sub-300ms p95 on free tiers or cold starts; measure and disclose.
+-- No cross-system atomicity between Neon, R2 and Queues: outbox, completion intent, retries, and reconciliation provide eventual consistency.
+-- Queue at-least-once semantics are expected; 'exactly once' applies to logical persisted outcomes, not executions.
+-- **Open feasibility risk:** FastAPI Python Worker may be unsuitable for R2 SDK signing or resource-intensive PDF/ZIP validation; Gate 0 determines whether TypeScript Worker and isolated container fallbacks are required.
++- No cross-system atomicity between Neon and R2: outbox, completion intent, retries, and reconciliation provide eventual consistency.
++- PostgreSQL job at-least-once execution semantics are expected; 'exactly once' applies to logical persisted outcomes, not executions.
++- **Open feasibility risk:** Render/Railway service plans must support the FastAPI/Uvicorn API, boto3 R2 operations, and a persistent dedicated Python worker; Gate 0 determines hosting resource requirements and whether isolated container validation is required.

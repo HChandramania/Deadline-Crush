@@ -1,0 +1,83 @@
+# Local configuration and secrets (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.neon
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python environments, bytecode, packaging and tool caches
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.uv-cache/
+pip-wheel-metadata/
+
+# JavaScript dependencies and build output
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.wrangler/
+
+# Coverage, test output and runtime logs
+.coverage
+.coverage.*
+coverage.xml
+coverage/
+htmlcov/
+junit.xml
+test-results/
+playwright-report/
+*.log
+*.pid
+*.pid.lock
+
+# Local scratch files and editor/OS metadata
+/tmp/
+/temp/
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Optional phase reports and generated verification output
+/docs/PHASE*.md
+/docs/*report*.md
+/docs/**/*.json
+
+# Contract fixtures consumed by tests must remain available in fresh clones.
+!/docs/contract-baseline-sha256.json
+!/docs/contract-replacements.json
+!/docs/captain-contract-audit.json
+!/docs/phase1-contract-audit.json
+!/docs/phase2-contract-audit.json
+
+# Temporary patches and local history (except the required migration fixture)
+/docs/history/
+*.patch
+!/docs/ARCHITECTURE_MIGRATION.patch
+
+# Keep contracts, migrations, decisions, sanitized setup docs, README/runbook,
+# dependency manifests/lockfiles, and deployment JSON.

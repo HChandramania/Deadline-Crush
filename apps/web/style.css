@@ -1,0 +1,12 @@
+:root { font-family: system-ui, sans-serif; color: #17243b; background: #f3f6fa; }
+body { margin: 0; }
+main { max-width: 30rem; margin: 8vh auto; padding: 2rem; background: white; border-radius: 1rem; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 1rem; }
+label { display: grid; gap: .4rem; }
+input, button { font: inherit; padding: .75rem; border-radius: .4rem; border: 1px solid #7b8799; }
+button { cursor: pointer; background: #173f88; color: white; }
+button[type=button] { background: white; color: #173f88; }
+:disabled { opacity: .6; cursor: wait; }
+:focus-visible { outline: 3px solid #dd9600; outline-offset: 2px; }
+[role=alert] { color: #a01818; }
+@media (max-width: 36rem) { main { margin: 1rem; padding: 1.5rem; } }

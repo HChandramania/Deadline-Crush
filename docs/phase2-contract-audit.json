@@ -1,0 +1,34 @@
+{
+  "PRD.md": {
+    "before_sha256": "b4a2b4ad73f2459a489ed96f0a7c366f6f0ad201a2c5af264eaa686d7d0da3a4",
+    "after_sha256": "0015101f3a42c91de7ab72995c8ca6719cdd9f6686f9b413054126572ea91862",
+    "replacements": [
+      [
+        "Pre-deadline frozen candidates can complete already-uploaded parts during grace; no new versions or edits during grace.",
+        "Pre-deadline frozen candidates may upload or retry missing parts only within the immutable session, authorized part range and constraints frozen before the deadline; no new versions, sessions, expanded ranges or metadata edits during grace."
+      ],
+      [
+        "## 2. Personas",
+        "## Phase 2 submission eligibility clarification\nSubmission operations require an explicit selected team and current database membership, including non-captain members. Eligibility is membership in that team associated with its hackathon, subject to the existing deadline and upload constraints. Captain restrictions concern team administration. Membership is rechecked on every operation; organizer status grants no cross-team submission access.\n\n## 2. Personas"
+      ]
+    ]
+  },
+  "TRD.md": {
+    "before_sha256": "123357eaab33c3f36243ee0971ecdf82e583e36b907d504bb0f22fcb12c4f601",
+    "after_sha256": "ee1f30b893495f0064f2becfc155d225e4e2fcbd0954b54892f4fbcf84ce2f7f",
+    "replacements": [
+      [
+        "Team is derived from membership, not trusted client body.",
+        "Submission routes require a team_id UUID query parameter (the smallest compatible addition to existing request bodies and paths); it selects a team but grants no authority. Every operation verifies current database membership and derives hackathon association from that team. All current members may admit and finalize; organizer status alone grants no submission access. Team/hackathon version allocation and principal-scoped admission idempotency use this verified association."
+      ],
+      [
+        "verify R2 `ListParts` equals the proposed complete, ordered manifest before writing immutable `completion_intents` row.",
+        "observe R2 `ListParts` outside any database transaction, then reacquire team/session locks, recheck database time and unchanged authorization, and verify the observation equals the proposed complete, ordered manifest before writing immutable `completion_intents` row."
+      ],
+      [
+        "- Sign each part only for authenticated session and authorized part number; browser PUTs bytes directly to R2.",
+        "- Freeze the session identity, expected part range, part size, object key, size and grace cutoff at pre-deadline admission. Grace permits uploading/retrying missing parts only within that existing authorization; no new session or expanded range. Sign each part only for authenticated session and authorized part number; browser PUTs bytes directly to R2."
+      ]
+    ]
+  }
+}

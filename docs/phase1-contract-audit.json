@@ -1,0 +1,40 @@
+{
+  "AGENTS.md": {
+    "before_sha256": "e3eab02c30e800aff57bca4eff722185afe70418c35410131659e8ca1b391904",
+    "after_sha256": "2ab47fd6a561b5194e4d2c0c845ffd3e80f5cc11e570cb351f8639de3a1dcc57",
+    "replacements": [
+      [
+        "- Database: **Neon PostgreSQL**",
+        "- Identity: Neon managed Better Auth owns credentials and sessions; FastAPI verifies managed access tokens. Application profiles, team membership and organizer privileges remain application-owned. Never migrate neon_auth or introduce custom password storage/JWT issuance.\n- Database: **Neon PostgreSQL**"
+      ]
+    ]
+  },
+  "PRD.md": {
+    "before_sha256": "f21c703a6e971d511365aa5c0df7a046d743edc35b9d7d676231f6178ef7657b",
+    "after_sha256": "b4a2b4ad73f2459a489ed96f0a7c366f6f0ad201a2c5af264eaa686d7d0da3a4",
+    "replacements": [
+      [
+        "## 2. Personas",
+        "## Managed identity and Phase 1 team policy\nManaged Better Auth owns authentication credentials and sessions. The application maps verified issuer/subject to profiles and controls memberships and organizer privileges. Authenticated participants may create teams and become captain. Invitation/removal eligibility rules remain unresolved, so membership mutations are deferred. Signup cannot grant organizer privileges.\n\n## 2. Personas"
+      ]
+    ]
+  },
+  "TRD.md": {
+    "before_sha256": "901a16826702f1ff06fd159d2a72237b62cc2fd92774e601db22cec20a3c8aa7",
+    "after_sha256": "123357eaab33c3f36243ee0971ecdf82e583e36b907d504bb0f22fcb12c4f601",
+    "replacements": [
+      [
+        " email text NOT NULL, password_hash text NOT NULL,",
+        " auth_issuer text NOT NULL, auth_subject text NOT NULL,\n email text NOT NULL DEFAULT '',"
+      ],
+      [
+        "CREATE UNIQUE INDEX users_email_ci ON users (lower(email));",
+        "CREATE UNIQUE INDEX users_external_identity ON users (auth_issuer,auth_subject);"
+      ],
+      [
+        "### `POST /submissions/versions`",
+        "### Phase 1 managed identity and teams\nManaged Better Auth exclusively owns passwords and sessions in neon_auth. No custom signup/login, password storage, JWT issuance or neon_auth migrations. Browser uses the installed @neon/auth client getSession().data.session.token to obtain an access JWT, then sends Authorization: Bearer to FastAPI. FastAPI restricts EdDSA/Ed25519, verifies kid/signature/issuer/audience/expiration/iat and nbf when present against configured branch JWKS. Issuer and audience are the branch Auth URL origin (confirmed against live managed token before release). Subject is opaque text; application identity is unique (auth_issuer,auth_subject), never email. Roles come from PostgreSQL, never token or request role claims. JWKS cache: five minutes, at most 16 keys/64 KiB, five-second network timeout and ten-second refetch cooldown; fail closed. Logout clears frontend identity; issued JWTs remain valid until expiration.\n\nPhase 1 routes: GET /users/me provisions a MEMBER profile idempotently; GET /teams lists own teams; POST /teams accepts {hackathon_id,name} plus Idempotency-Key and atomically creates captain membership/audit (201; identical retry 200; conflicting retry 409). GET /teams/{team_id} and GET /teams/{team_id}/members require current database membership, returning 404 for inaccessible teams. GET /organizer/metrics requires database ORGANIZER. No public role or membership mutations. Organizer provisioning uses an explicit privileged database operation and audit. Captain assignment is immutable through public APIs; invitation/removal rules are deferred. Full reviewed schema is in migrations; illustrative SQL below omits these added team ownership fields. No candidate/upload/finalization lifecycle in Phase 1.\n\n### `POST /submissions/versions`"
+      ]
+    ]
+  }
+}

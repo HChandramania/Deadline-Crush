@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+RUN pip install --no-cache-dir PyMuPDF==1.27.2.2
+COPY scripts/validation_feasibility.py /probe.py
+USER nobody
+CMD ["python", "/probe.py"]

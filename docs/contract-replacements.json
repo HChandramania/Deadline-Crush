@@ -1,0 +1,160 @@
+{
+  "AGENTS.md": [
+    [
+      "or conventional Python-worker designs",
+      "or Cloudflare Python Worker designs"
+    ],
+    [
+      "- API: FastAPI/Pydantic v2 on **Cloudflare Python Workers** (Pyodide/WASM). Do not assume conventional CPython, OS subprocesses, native wheels, sockets, filesystem persistence, or indefinitely running requests.",
+      "- API: FastAPI/Pydantic v2 on **standard CPython with Uvicorn**, hosted on Render or Railway. Use a supported CPython version, bounded resources, environment variables, and graceful process startup/shutdown; do not rely on filesystem persistence."
+    ],
+    [
+      "- Database: **Neon PostgreSQL**, via Cloudflare Hyperdrive where supported. Test the actual Python driver (`asyncpg` or supported alternative) and transaction semantics in deployed Workers.",
+      "- Database: **Neon PostgreSQL**, directly via a pooled Neon connection string and a bounded application-level `asyncpg` pool. Test transaction semantics in the deployed CPython service."
+    ],
+    [
+      "- Object storage: **Cloudflare R2**; private bucket, browser-to-R2 multipart uploads. Confirm compatibility of signing and R2 APIs in the actual Worker runtime. A small TypeScript Worker for R2 orchestration is an allowed fallback if Python SDK compatibility blocks progress; preserve the FastAPI public API.",
+      "- Object storage: **Cloudflare R2**; private bucket, browser-to-R2 multipart uploads using boto3/S3-compatible operations. Confirm signing and R2 API compatibility in the deployed CPython service; preserve the FastAPI public API."
+    ],
+    [
+      "- Background delivery: **Cloudflare Queues** with a separate queue consumer Worker; at-least-once delivery. PostgreSQL outbox is authoritative for dispatch, and PostgreSQL jobs are authoritative for state. Queue consumers must be idempotent. If Python queue-consumer support or archive/PDF processing is impractical, use a TypeScript consumer and/or isolated container validation service, documenting the deviation; never claim unsupported Python packages work.",
+      "- Background delivery: **PostgreSQL-backed durable jobs** with a dedicated Python worker process; at-least-once execution. PostgreSQL outbox is authoritative for dispatch, and PostgreSQL jobs are authoritative for state. Job consumers must be idempotent. If archive/PDF processing requires further isolation, use an isolated container validation service, documenting the deviation; verify Python package and resource requirements."
+    ],
+    [
+      "across an R2 or Queues network call",
+      "across an R2 or other external network call"
+    ],
+    [
+      "JWTs, database credentials, signed URLs, queue secrets, and file bytes",
+      "JWTs, database credentials, signed URLs, service secrets, and file bytes"
+    ],
+    [
+      "Deploy a Python FastAPI Worker; connect to Neon via Hyperdrive; sign and complete an R2 multipart upload; publish/consume a Queue message; verify Python ZIP/PDF libraries and CPU/memory constraints.",
+      "Deploy a CPython FastAPI/Uvicorn service on Render or Railway; connect directly to Neon with an asyncpg pool; sign and complete an R2 multipart upload with boto3; enqueue/claim a PostgreSQL job in a dedicated Python process; verify Python ZIP/PDF libraries and CPU/memory constraints."
+    ],
+    [
+      "Transactional outbox dispatcher, queue consumer, leases/fencing",
+      "Transactional outbox dispatcher, PostgreSQL job consumer, leases/fencing"
+    ],
+    [
+      "worker-api/             # FastAPI Python Worker",
+      "worker-api/             # FastAPI/Uvicorn CPython service"
+    ],
+    [
+      "worker-consumer/        # Queue consumer (Python if viable, TS fallback)",
+      "worker-consumer/        # Dedicated Python job worker process"
+    ],
+    [
+      "worker-dispatcher/      # scheduled outbox publisher",
+      "worker-dispatcher/      # PostgreSQL outbox/reconciliation process"
+    ],
+    [
+      "wrangler*.jsonc",
+      "infra/{render.yaml,railway*.json}"
+    ],
+    [
+      "Worker delivery is at least once",
+      "Job execution is at least once"
+    ]
+  ],
+  "PRD.md": [
+    [
+      "FastAPI/Cloudflare Python Workers, Neon PostgreSQL, Cloudflare R2, Cloudflare Queues",
+      "FastAPI/Uvicorn on Render or Railway (CPython), Neon PostgreSQL, Cloudflare R2, PostgreSQL-backed durable jobs"
+    ],
+    [
+      "R2/Neon/Queues integrations",
+      "R2/Neon/PostgreSQL job integrations"
+    ],
+    [
+      "If Cloudflare Python Workers cannot safely run archive/PDF validation, a documented isolated processing fallback is acceptable only after feasibility testing and must not be misrepresented as a Python Worker feature.",
+      "If the dedicated Python worker cannot safely run archive/PDF validation within hosting resource limits, a documented isolated processing fallback is acceptable only after feasibility testing and must not be misrepresented as a verified worker feature."
+    ]
+  ],
+  "TRD.md": [
+    [
+      "FastAPI on Cloudflare Python Workers for",
+      "FastAPI/Uvicorn on standard CPython hosted on Render or Railway for"
+    ],
+    [
+      "via Cloudflare Hyperdrive and a tested Python driver; use short-lived transactions and pooled connections.",
+      "directly via a pooled Neon connection string and asyncpg; use short-lived transactions and bounded application-level connection pools."
+    ],
+    [
+      "Private Cloudflare R2 for direct browser multipart uploads and immutable completed objects/previews.",
+      "Private Cloudflare R2 via boto3/S3-compatible operations for direct browser multipart uploads and immutable completed objects/previews."
+    ],
+    [
+      "- Cloudflare Queues for at-least-once processing. Transactional PostgreSQL outbox bridges database commit to queue publication. Queue consumer Worker (Python if feasible; TypeScript orchestrator if necessary); use isolated validation service if WASM limits make ZIP/PDF processing unsafe.",
+      "- PostgreSQL-backed durable jobs for at-least-once processing. Transactional PostgreSQL outbox bridges database commit to job dispatch. Dedicated Python worker process; use isolated validation service if hosting resource limits make ZIP/PDF processing unsafe."
+    ],
+    [
+      "- Scheduled dispatcher/reconciler Worker scans pending outbox rows, uncertain R2 operations, and expired job leases. No forever-looping Python Workers.",
+      "- A dedicated Python dispatcher/reconciler process scans pending outbox rows, uncertain R2 operations, and expired job leases. Use bounded polling and graceful shutdown."
+    ],
+    [
+      "Deploy `GET /health` FastAPI Python Worker.",
+      "Deploy `GET /health` FastAPI/Uvicorn CPython service on Render or Railway."
+    ],
+    [
+      "Connect via Hyperdrive to Neon,",
+      "Connect directly to Neon using a bounded asyncpg pool,"
+    ],
+    [
+      "Python S3 libraries may not work in Pyodide: if so, isolate R2 orchestration in a small TypeScript Worker with authenticated service calls.",
+      "Use boto3/S3-compatible operations in CPython; verify signing and transport against actual R2."
+    ],
+    [
+      "Publish and consume Cloudflare Queue message, including duplicate delivery and retry behavior; verify supported runtime for the consumer.",
+      "Enqueue and claim a PostgreSQL-backed job, including duplicate execution and retry behavior; verify the dedicated Python worker process."
+    ],
+    [
+      "retain queue orchestration and API on Cloudflare.",
+      "retain PostgreSQL job orchestration and the API on Render or Railway."
+    ],
+    [
+      "Confirm Cloudflare plan quotas (CPU, request duration, queues, cron, R2 operations), Neon free limits,",
+      "Confirm Render/Railway plan quotas (CPU, memory, request duration, persistent background processes, sleeping), R2 operation quotas, Neon free limits,"
+    ],
+    [
+      "**Outbox:** Finalization transaction inserts `validation_jobs(version_id UNIQUE)` and `outbox(event_type='VALIDATE',aggregate_id=version_id UNIQUE)`. Scheduled dispatcher claims outbox rows with `FOR UPDATE SKIP LOCKED`, marks SENDING with lease, publishes to Queues, then marks SENT. If publish succeeds but acknowledgment/DB update fails, duplicate delivery is expected and harmless. Expired SENDING rows are republished.",
+      "**Outbox:** Finalization transaction inserts `validation_jobs(version_id UNIQUE)` and `outbox(event_type='VALIDATE',aggregate_id=version_id UNIQUE)`. A dedicated Python dispatcher claims outbox rows with `FOR UPDATE SKIP LOCKED`, marks SENDING with lease, makes the durable PostgreSQL job available, then marks SENT. If dispatch succeeds but acknowledgment/DB update fails, duplicate execution is expected and harmless. Expired SENDING rows are redispatched."
+    ],
+    [
+      "**Consumer:** On Queue delivery, attempt atomic job claim; terminal jobs acknowledge without work. For long processing, check/extend lease. On crash, retry message or periodic recovery re-enqueues expired jobs. Cloudflare Queue execution limits and retry semantics must be verified; do not assume a Python Worker can run unbounded validation.",
+      "**Consumer:** The dedicated Python process polls PostgreSQL and attempts atomic job claim; terminal jobs require no work. For long processing, check/extend lease. On crash, retry or periodic recovery makes expired jobs available again. Hosting execution limits and retry semantics must be verified; do not assume a Python worker can run unbounded validation."
+    ],
+    [
+      "If Cloudflare Python Workers cannot run renderer,",
+      "If the dedicated Python worker cannot safely run the renderer within hosting resource limits,"
+    ],
+    [
+      "Neon/Hyperdrive, R2 multipart/CORS and Queues.",
+      "direct Neon/asyncpg pooling, R2 multipart/CORS and PostgreSQL jobs."
+    ],
+    [
+      "FastAPI Python Worker, Neon/Hyperdrive transaction, R2 multipart, Queues, ZIP/PDF feasibility.",
+      "FastAPI/Uvicorn CPython service, direct Neon/asyncpg transaction and pooling, boto3 R2 multipart, PostgreSQL jobs, ZIP/PDF feasibility."
+    ],
+    [
+      "outbox, dispatcher, Queue consumer, fenced jobs",
+      "outbox, dispatcher, PostgreSQL job consumer, fenced jobs"
+    ],
+    [
+      "Configure Worker secrets and Hyperdrive binding; R2 credentials or bindings are server-only.",
+      "Configure environment variables and secrets for Render/Railway web and dedicated Python worker processes; Neon and R2 credentials are server-only."
+    ],
+    [
+      "Neon, R2 and Queues:",
+      "Neon and R2:"
+    ],
+    [
+      "Queue at-least-once semantics are expected;",
+      "PostgreSQL job at-least-once execution semantics are expected;"
+    ],
+    [
+      "**Open feasibility risk:** FastAPI Python Worker may be unsuitable for R2 SDK signing or resource-intensive PDF/ZIP validation; Gate 0 determines whether TypeScript Worker and isolated container fallbacks are required.",
+      "**Open feasibility risk:** Render/Railway service plans must support the FastAPI/Uvicorn API, boto3 R2 operations, and a persistent dedicated Python worker; Gate 0 determines hosting resource requirements and whether isolated container validation is required."
+    ]
+  ]
+}

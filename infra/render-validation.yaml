@@ -1,0 +1,41 @@
+services:
+  - type: worker
+    name: deadline-crush-validation
+    runtime: docker
+    plan: standard
+    dockerfilePath: ./infra/Dockerfile
+    dockerContext: .
+    dockerCommand: python apps/consumer/validation_main.py --concurrency 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_SCHEMA
+        value: deadline_crush
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+  - type: worker
+    name: deadline-crush-dispatcher
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./infra/Dockerfile
+    dockerContext: .
+    dockerCommand: python apps/consumer/validation_main.py --dispatch
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_SCHEMA
+        value: deadline_crush
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false

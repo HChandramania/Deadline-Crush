@@ -1,0 +1,24 @@
+name: Backend and managed identity checks
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.26'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: uv sync --directory apps/api --locked
+      - run: apps/api/.venv/bin/python -m pytest -q
+      - run: apps/api/.venv/bin/python apps/consumer/main.py --check
+      - run: apps/api/.venv/bin/python apps/api/storage_recovery.py --check
+      - run: PYTHONPATH=apps/api:packages/shared/src apps/api/.venv/bin/python apps/consumer/validation_main.py --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --prefix apps/web
+      - run: node --test apps/web/api.test.mjs
+      - run: npm run build --prefix apps/web

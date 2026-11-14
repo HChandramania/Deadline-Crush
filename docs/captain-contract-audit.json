@@ -1,0 +1,50 @@
+{
+  "PRD.md": {
+    "before_sha256": "0015101f3a42c91de7ab72995c8ca6719cdd9f6686f9b413054126572ea91862",
+    "after_sha256": "c6ce13d9e8d3c05ef2da3d152fd3c1deaf41cdad34e8327aa5b481f3f864fdca",
+    "replacements": [
+      [
+        "Submission operations require an explicit selected team and current database membership, including non-captain members. Eligibility is membership in that team associated with its hackathon, subject to the existing deadline and upload constraints. Captain restrictions concern team administration. Membership is rechecked on every operation; organizer status grants no cross-team submission access.",
+        "Submission operations require an explicit selected team and current database membership associated with that hackathon. Only its active leader/captain may create or edit submissions through new immutable versions, upload, resume, or finalize. Ordinary members may view their team's submissions but may not mutate them. Every mutation verifies the authenticated user's current CAPTAIN membership role and matching team captain_id server-side, including retries and after external storage calls; client roles grant no authority. Organizer status grants no submission bypass. This authoritative product decision supersedes the earlier all-members submission policy; deadline, grace, idempotency and version-selection rules are unchanged."
+      ],
+      [
+        "- **Team member:** signs in, edits project metadata, uploads up to 100 MB, resumes interrupted upload, sees status and versions, accesses only their team's files.",
+        "- **Team leader/captain:** signs in, creates immutable metadata versions, uploads up to 100 MB, resumes and finalizes their team's submissions.\n- **Team member:** signs in and views only their team's submissions, status, versions and permitted downloads; cannot mutate submissions."
+      ],
+      [
+        "1. Member signs in, selects their team, enters title/description/links and file metadata.",
+        "1. Captain signs in, selects their team, enters title/description/links and file metadata."
+      ],
+      [
+        "2. Member freezes a candidate version",
+        "2. Captain freezes a candidate version"
+      ],
+      [
+        "4. Member requests completion;",
+        "4. Captain requests completion;"
+      ],
+      [
+        "Team members access only own submissions and signed download links; organizer endpoints require organizer role.",
+        "Team members view only own submissions and permitted downloads; only the current team captain creates versions, uploads, resumes or finalizes; organizer endpoints require organizer role."
+      ]
+    ]
+  },
+  "TRD.md": {
+    "before_sha256": "ee1f30b893495f0064f2becfc155d225e4e2fcbd0954b54892f4fbcf84ce2f7f",
+    "after_sha256": "3645a9afb3e71259f04771b5839957909f2aaf196d9ee9931dd8001fb52df7e1",
+    "replacements": [
+      [
+        "Every operation verifies current database membership and derives hackathon association from that team. All current members may admit and finalize; organizer status alone grants no submission access.",
+        "Every operation verifies current database membership and derives hackathon association from that team. Reads of submissions allow ordinary members. Every submission mutation (version creation/edit through new versions, upload authorization, resume and completion/finalization) requires both current CAPTAIN membership and matching teams.captain_id for the authenticated application user, locked through the transition and rechecked after external observations and on retries. Client/JWT role claims and organizer status grant no bypass. This supersedes the earlier all-members submission policy."
+      ],
+      [
+        "Authorize membership; ensure session ACTIVE,",
+        "Authorize the active team captain using the shared locked mutation check; ensure session ACTIVE,"
+      ],
+      [
+        "### `GET /uploads/{session_id}`\n",
+        "### `GET /uploads/{session_id}`\nResume/authoritative part listing requires the active team captain; ordinary members view status/history through submission read endpoints. Require explicit team_id and verify session ownership server-side.\n"
+      ]
+    ]
+  }
+}
