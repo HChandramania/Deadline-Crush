@@ -1,0 +1,4 @@
+# Contract audit fixtures compare exact bytes; keep checkout behavior portable.
+AGENTS.md text eol=lf
+PRD.md text eol=lf
+TRD.md text eol=lf

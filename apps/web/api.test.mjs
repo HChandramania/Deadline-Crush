@@ -76,3 +76,42 @@ test('logout aborts requests already in flight', async () => {
     await assert.rejects(request, /Aborted/);
   } finally { globalThis.fetch = original; }
 });
+
+test('deadline and idempotency errors preserve distinct actionable codes', async () => {
+  const original = globalThis.fetch;
+  try {
+    const { api, ApiError } = await client({ getSession: async () => ({ data: { user: {}, session: { token: 'test-proof' } } }) });
+    for (const code of ['DEADLINE_CLOSED', 'GRACE_EXPIRED', 'IDEMPOTENCY_CONFLICT', 'PARTS_MISMATCH', 'CAPTAIN_REQUIRED']) {
+      globalThis.fetch = async () => new Response(JSON.stringify({ error: { code, message: 'safe server error' } }), { status: 409 });
+      await assert.rejects(api('/test'), error => error instanceof ApiError && error.code === code && error.status === 409 && error.message !== 'safe server error');
+    }
+  } finally { globalThis.fetch = original; }
+});
+
+test('a rejected cached access token refreshes through the managed SDK once, preserving the mutation key', async () => {
+  const original = globalThis.fetch;
+  try {
+    let calls = 0, refreshes = 0;
+    const { api } = await client({ getSession: async options => {
+      if (options) { refreshes++; assert.equal(options.query.disableCookieCache, true); assert.equal(options.fetchOptions.headers['X-Force-Fetch'], 'true'); }
+      return { data: { user: {}, session: { token: options ? 'fresh-proof' : 'cached-proof' } } };
+    } });
+    globalThis.fetch = async (url, init) => {
+      assert.equal(init.headers['Idempotency-Key'], 'same-operation');
+      assert.equal(init.body, '{"frozen":true}');
+      assert.equal(init.headers.Authorization, calls++ === 0 ? 'Bearer cached-proof' : 'Bearer fresh-proof');
+      return calls === 1 ? new Response('', { status: 401 }) : new Response('{"ok":true}');
+    };
+    assert.deepEqual(await api('/test', { method: 'POST', headers: { 'Idempotency-Key': 'same-operation' }, body: '{"frozen":true}' }), { ok: true });
+    assert.equal(refreshes, 1); assert.equal(calls, 2);
+  } finally { globalThis.fetch = original; }
+});
+
+test('managed auth infrastructure errors never masquerade as expired identity', async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => { throw new Error('API must not be called'); };
+    const { api, ApiError } = await client({ getSession: async () => ({ error: { status: 503 } }) });
+    await assert.rejects(api('/test'), error => error instanceof ApiError && error.code === 'AUTH_UNAVAILABLE' && error.status === 503);
+  } finally { globalThis.fetch = original; }
+});

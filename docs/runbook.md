@@ -163,3 +163,29 @@ updates to bypass it. A 202 acknowledges durable intent only. A 200 FINALIZED
 requires storage evidence plus committed version/job/outbox/audit. Retries may
 recover an existing qualifying intent beyond grace without changing its manifest.
 
+# Phase 5 local UI verification and release hold
+
+See `docs/PHASE_5.md` for endpoint matrix, exact evidence and production blockers.
+Do not initialize production or provision organizers as part of a UI test.
+
+For an explicitly disposable local integration: build the documented cached Linux
+test image with current API product files, run `node scripts/python.mjs phase5-local`,
+then `node scripts/phase5_web.mjs`. Actual origins/event/schema are recorded in
+ignored `tmp/phase5-local.json`. Sign in using normal managed Auth. No audit token
+handoff is part of the production frontend. Stop the API harness gracefully for
+exact fixture-key and schema cleanup. Never terminate it before cleanup completes.
+Use `node scripts/phase5_stop.mjs` to request that graceful cleanup. The Vite
+preview is a separate local process; production and the older API are unaffected.
+
+Organizer setup requires an explicit privileged operation after an actual managed
+identity has an application profile:
+`node scripts/python.mjs admin organizer --schema <reviewed-schema> --user-id <application-user-uuid>`.
+Review/approve the exact target first. The existing command writes the application
+role and audit event atomically; it never touches neon_auth. Do not confuse this
+with granting broader runtime database permissions.
+
+Run `npm test --prefix apps/web`, `npm run build --prefix apps/web`, and
+`npm run test:e2e --prefix apps/web` for controlled browser contracts. Live browser
+tests require explicit isolated origins/event/account configuration; they are
+skipped without it. No credentials belong in chat, reports or Vite client secrets.
+

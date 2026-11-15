@@ -12,6 +12,7 @@ from identity import TokenVerifier
 from domain import router
 from submissions import router as submission_router, SubmissionError
 from uploads import router as upload_router
+from product import router as product_router
 from r2_uploads import R2Storage
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
@@ -53,6 +54,7 @@ app = FastAPI(title='Deadline Crush Phase 0', docs_url=None, redoc_url=None, lif
 app.include_router(router)
 app.include_router(submission_router)
 app.include_router(upload_router)
+app.include_router(product_router)
 app.add_middleware(CORSMiddleware, allow_origins=Settings.load().CORS_ORIGINS.split(','),
                    allow_credentials=False, allow_methods=['GET', 'POST'],
                    allow_headers=['Authorization', 'Content-Type', 'Idempotency-Key'])
@@ -62,7 +64,10 @@ app.add_middleware(CORSMiddleware, allow_origins=Settings.load().CORS_ORIGINS.sp
 async def redact_dependency_errors(request, call_next):
     request.state.request_id = str(uuid4())
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        if request.url.path.startswith('/api/v1/'):
+            response.headers['Cache-Control'] = 'private, no-store'
+        return response
     except Exception:
         # Prevent ASGI server traceback logs from exposing SDK request URLs.
         return await error(request, None)

@@ -49,11 +49,15 @@ class Members(BaseModel):
 
 class Metrics(BaseModel):
     teams: int
+    total_versions: int = 0
+    checking_versions: int = 0
+    accepted_versions: int = 0
     finalized_versions: int
     late_attempts: int
     failed_checks: int
     queue_pending: int
     validation: dict[str,int | float | None] = Field(default_factory=dict)
+    recent_activity: list[dict] = Field(default_factory=list)
 
 
 def transaction(request):
@@ -146,11 +150,17 @@ async def create_team(body: TeamInput, request: Request, profile: Profile = Depe
 async def metrics(request: Request, profile: Profile = Depends(organizer)):
     async with transaction(request) as connection:
         row = await connection.fetchrow('''SELECT (SELECT count(*) FROM teams) AS teams,
+          (SELECT count(*) FROM submission_versions) AS total_versions,
+          (SELECT count(*) FROM submission_versions WHERE validation_status='CHECKING') AS checking_versions,
+          (SELECT count(*) FROM submission_versions WHERE validation_status='ACCEPTED') AS accepted_versions,
           (SELECT count(*) FROM submission_versions WHERE lifecycle='FINALIZED') AS finalized_versions,
           (SELECT count(*) FROM late_attempts) AS late_attempts,
           (SELECT count(*) FROM submission_versions WHERE validation_status='NEEDS_FIX') AS failed_checks,
           (SELECT count(*) FROM validation_jobs WHERE status='PENDING') AS queue_pending''')
+        activity = await connection.fetch('''SELECT date_trunc('minute',finalized_at) AS minute,count(*) AS finalized
+            FROM submission_versions WHERE finalized_at>clock_timestamp()-interval '1 hour'
+            GROUP BY 1 ORDER BY 1 DESC LIMIT 60''')
     from validation_jobs import Queue
     settings=request.app.state.settings
     validation=await Queue(request.app.state.pool,settings.APP_SCHEMA).metrics()
-    return {**dict(row),'validation':validation}
+    return {**dict(row),'validation':validation,'recent_activity':[dict(r) for r in activity]}

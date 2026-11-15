@@ -18,6 +18,8 @@ const commands = {
   worker: ['apps/consumer/main.py'],
   validation: ['apps/consumer/validation_main.py', ...process.argv.slice(3)],
   recovery: ['apps/api/storage_recovery.py', ...process.argv.slice(3)],
+  'phase5-local': ['scripts/phase5_local.py'],
+  'phase5-inspect': ['scripts/phase5_inspect.py'],
   cors: ['scripts/phase3_cors.py', ...process.argv.slice(3)],
   'cors-cli': ['scripts/phase3_cors_wrangler.py', ...process.argv.slice(3)],
   'fixture-cleanup': ['scripts/phase3_fixture_cleanup.py', ...process.argv.slice(3)],

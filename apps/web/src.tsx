@@ -2,51 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { authClient } from './auth';
 import './style.css';
-import { api, clearApiSession, type Profile, type Team } from './api';
-
-function TeamView() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const retry = useRef<{ body: string; key: string } | null>(null);
-  useEffect(() => {
-    let active = true;
-    Promise.all([api<Profile>('/users/me'), api<{ teams: Team[] }>('/teams')])
-      .then(([me, list]) => { if (active) { setProfile(me); setTeams(list.teams); } })
-      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Unable to load teams.'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
-  async function create(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const fields = new FormData(form);
-    const body = JSON.stringify({ hackathon_id: fields.get('hackathon_id'), name: fields.get('name') });
-    if (retry.current?.body !== body) retry.current = { body, key: crypto.randomUUID() };
-    setBusy(true); setError('');
-    try {
-      const team = await api<Team>('/teams', { method: 'POST', headers: {
-        'Content-Type': 'application/json', 'Idempotency-Key': retry.current.key,
-      }, body });
-      retry.current = null;
-      setTeams(previous => previous.some(existing => existing.id === team.id) ? previous : [...previous, team]); form.reset();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to create team.'); }
-    finally { setBusy(false); }
-  }
-  return <section aria-label="Your teams"><h2>Your teams</h2>
-    {loading ? <p role="status">Loading teams…</p> : teams.length ? <ul>{teams.map(team =>
-      <li key={team.id}>{team.name}{profile?.id === team.captain_id ? ' (captain)' : ''}</li>)}</ul> : <p>You have no teams yet.</p>}
-    {error && <p role="alert">{error}</p>}
-    {profile && <form onSubmit={create}><fieldset disabled={busy}>
-      <legend>Create a team</legend>
-      <label>Hackathon ID<input name="hackathon_id" required pattern="[a-fA-F0-9-]{36}" /></label>
-      <label>Team name<input name="name" required maxLength={100} /></label>
-      <button type="submit">{busy ? 'Creating…' : 'Create team'}</button>
-    </fieldset></form>}
-  </section>;
-}
+import { clearApiSession } from './api';
+import { TeamView } from './workspace';
 
 function App() {
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
@@ -54,6 +11,12 @@ function App() {
   const [pending, setPending] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    const expired = () => { clearApiSession(); setUser(null); setError('Your session expired. Sign in to continue your admitted upload.'); };
+    window.addEventListener('session-expired', expired);
+    return () => window.removeEventListener('session-expired', expired);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -107,11 +70,11 @@ function App() {
     finally { setPending(false); }
   }
 
-  return <main><h1>Deadline Crush</h1><p>Sign in to your hackathon account. Submissions are not open yet.</p>
+  return <main><header className="app-header"><a className="brand" href="/">DC<span>Deadline Crush<small>HACK4HACK · SUBMISSION PORTAL</small></span></a><span className="muted">Build boldly. Submit confidently.</span></header>
     {!authClient ? <p role="alert">Authentication is not configured.</p> : user ?
-      <section aria-label="Your account"><h2>Welcome, {user.name}</h2><p>Signed in as {user.email}</p>
-        <button disabled={pending} onClick={signOut}>Sign out</button><TeamView key={user.email} /></section> :
-      <form onSubmit={submit} aria-busy={pending}><h2>{mode === 'signup' ? 'Create an account' : 'Sign in'}</h2>
+      <section aria-label="Your account"><div className="account-bar"><span>Welcome, {user.name} · {user.email}</span>
+        <button disabled={pending} onClick={signOut}>Sign out</button></div><TeamView key={user.email} /></section> :
+      <form className="auth-card card" onSubmit={submit} aria-busy={pending}><span className="eyebrow">Your next big idea, delivered.</span><h1>Make the deadline.<br />Keep the momentum.</h1><p>Secure uploads, recoverable progress, and a clear record of every version.</p><h2>{mode === 'signup' ? 'Create an account' : 'Sign in'}</h2>
         <fieldset disabled={pending}>
           {mode === 'signup' && <label>Name<input name="name" autoComplete="name" required maxLength={100} /></label>}
           <label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} /></label>

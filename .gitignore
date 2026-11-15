@@ -64,8 +64,10 @@ Desktop.ini
 
 # Optional phase reports and generated verification output
 /docs/PHASE*.md
+!/docs/PHASE_5.md
 /docs/*report*.md
 /docs/**/*.json
+!/docs/load-test-report.md
 
 # Contract fixtures consumed by tests must remain available in fresh clones.
 !/docs/contract-baseline-sha256.json

@@ -128,3 +128,15 @@ The user explicitly requested Neon managed Better Auth on project empty-mud-4700
 - Minimal stdlib SigV4 signer avoids assuming boto3 transport works in Pyodide. It remains a candidate until real UploadPart and control requests pass. If it fails, stop and propose an authenticated TypeScript service binding as allowed by the contract.
 - ZIP spike cap is 8 MiB compressed / 32 MiB expanded. This is deliberately not proof that 100 MiB ZIPs fit Workers memory. No extraction to disk. PDF candidate is PyMuPDF; unavailable renderer requires a separately approved isolated container fallback, not silently omitted previews.
 - Probe routes fail closed without PROBE_TOKEN; no user authentication implemented. Disable/delete probe deployments after review. R2 capabilities are bearer secrets and must never be logged.
+# Phase 5 product integration (2026-11-15)
+
+- Preserve managed Auth and all existing captain/deadline/finalization mutations.
+  Add only missing event, validation/preview/download and organizer read surfaces.
+- Use cancelled adaptive polling (participant 5s, details 7s, organizer 10s),
+  not a new broker or streaming dependency. Persist only nonsecret upload identity
+  and stable operation UUIDs; verify all file bytes before missing-part resume.
+- Preview committed worker artifacts through authenticated bounded reads; sandbox
+  archive HTML without same-origin/script permissions. Export teams through bounded
+  keyset pages, with formula escaping; export is a moving read, not a DB snapshot.
+- Production remains NO-GO. See PHASE_5.md for the persistent schema/privilege/hosted
+  blocker register and separate controlled/live evidence. No Phase 6 authorization.
